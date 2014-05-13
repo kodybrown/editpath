@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("Path EnvVar Editor")]
-[assembly: AssemblyCopyright("Copyright © 2007-2013 Kody Brown (kody@bricksoft.com)")]
+[assembly: AssemblyCopyright("Copyright (C) 2007-2014 Kody Brown (kody@bricksoft.com)")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

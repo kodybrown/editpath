@@ -1,5 +1,5 @@
 ﻿//
-// Copyright (C) 2007-2013 Kody Brown (kody@bricksoft.com).
+// Copyright (C) 2007-2014 Kody Brown (kody@bricksoft.com).
 // 
 // MIT License:
 // 
@@ -36,6 +36,8 @@ namespace SystemPathEditor
 	{
 		private object _expandingPath = new object();
 		private object _collapsingPath = new object();
+		private bool _isExpandingPath = false;
+		private bool _isCollapsingPath = false;
 
 		private ListViewItem selectedItem;
 		private int selectedSubItemIndex = 0;
@@ -189,8 +191,8 @@ namespace SystemPathEditor
 
 			editBox.Size = new System.Drawing.Size(rightPos - leftPos, selectedItem.Bounds.Bottom - selectedItem.Bounds.Top);
 			editBox.Location = new System.Drawing.Point(
-					pathListView.Left + pathListView.Margin.Left + leftPos + 1,
-					splitContainer1.SplitterDistance + splitContainer1.Top + 2 + pathListView.Top + pathListView.Margin.Top + selectedItem.Bounds.Y);
+							pathListView.Left + pathListView.Margin.Left + leftPos + 1,
+							splitContainer1.SplitterDistance + splitContainer1.Top + 2 + pathListView.Top + pathListView.Margin.Top + selectedItem.Bounds.Y);
 
 			if (selectedSubItemIndex == pathListView.Columns["ChangePath"].Index) {
 				string subItemText = selectedItem.SubItems[selectedSubItemIndex].Text;
@@ -266,6 +268,11 @@ namespace SystemPathEditor
 
 		private void pathTextbox_TextChanged( object sender, EventArgs e )
 		{
+			PathChanged(!_isCollapsingPath && !_isExpandingPath);
+		}
+
+		private void PathChanged( bool expandPath = false )
+		{
 			_hasChanged = true;
 
 			undoToolStripMenuItem.Enabled = pathTextbox.CanUndo;
@@ -275,7 +282,9 @@ namespace SystemPathEditor
 			pasteToolStripMenuItem.Enabled = pathTextbox.Focused && Clipboard.ContainsText();
 			selectAllToolStripMenuItem.Enabled = pathTextbox.Text.Length > 0;
 
-			ExpandPath();
+			if (expandPath) {
+				ExpandPath();
+			}
 		}
 
 		#endregion
@@ -308,25 +317,41 @@ namespace SystemPathEditor
 
 		private void removeButton_Click( object sender, EventArgs e )
 		{
-			_hasChanged = true;
 			if (pathListView.SelectedItems.Count > 0) {
+				_hasChanged = true;
+
 				ListView.SelectedIndexCollection indexes = pathListView.SelectedIndices;
-				foreach (int index in indexes) {
-					pathListView.Items.RemoveAt(index);
+				int selectedIndex = pathListView.SelectedIndices[0];
+
+				for (int i = indexes.Count - 1; i >= 0; i--) {
+					pathListView.Items.RemoveAt(indexes[i]);
 				}
+
+				if (selectedIndex < pathListView.Items.Count) {
+					pathListView.Items[selectedIndex].Selected = true;
+				} else if (pathListView.Items.Count > 0) {
+					pathListView.Items[pathListView.Items.Count - 1].Selected = true;
+				}
+
 				CollapsePath();
 			}
 		}
 
 		private void moveUpButton_Click( object sender, EventArgs e )
 		{
-			_hasChanged = true;
 			if (pathListView.SelectedItems.Count == 1 && pathListView.Items.Count > 1) {
 				if (pathListView.SelectedIndices[0] > 0) {
+					_hasChanged = true;
+
 					ListViewItem item = pathListView.SelectedItems[0];
 					int index = item.Index;
+
 					pathListView.Items.RemoveAt(index);
 					pathListView.Items.Insert(index - 1, item);
+
+					item.Selected = true;
+					item.EnsureVisible();
+
 					CollapsePath();
 				}
 			}
@@ -334,13 +359,19 @@ namespace SystemPathEditor
 
 		private void moveDownButton_Click( object sender, EventArgs e )
 		{
-			_hasChanged = true;
 			if (pathListView.SelectedItems.Count == 1 && pathListView.Items.Count > 1) {
 				if (pathListView.SelectedIndices[0] < pathListView.Items.Count - 1) {
+					_hasChanged = true;
+
 					ListViewItem item = pathListView.SelectedItems[0];
 					int index = item.Index;
+
 					pathListView.Items.RemoveAt(index);
 					pathListView.Items.Insert(index + 1, item);
+
+					item.Selected = true;
+					item.EnsureVisible();
+
 					CollapsePath();
 				}
 			}
@@ -432,26 +463,52 @@ namespace SystemPathEditor
 		private void ExpandPath()
 		{
 			lock (_expandingPath) {
+				_isExpandingPath = true;
+
 				List<string> path;
 
 				path = Path.Split(pathTextbox.Text);
 
 				if (null != path) {
+					ListViewItem item = null;
+					int selectedIndex = -1;
+
+					// Save the current selected path..
+					if (pathListView.SelectedItems.Count > 0) {
+						item = pathListView.SelectedItems[0];
+						selectedIndex = pathListView.SelectedIndices[0];
+					}
+
 					pathListView.BeginUpdate();
 					pathListView.Items.Clear();
 
 					foreach (string p in path) {
-						AddPath(p);
+						AddPath(p, false);
 					}
+
+					if (item != null) {
+						foreach (ListViewItem itm in pathListView.Items) {
+							if (itm.SubItems[pathListView.Columns["Path"].Index].Text.Equals(item.SubItems[pathListView.Columns["Path"].Index].Text, StringComparison.CurrentCultureIgnoreCase)) {
+								itm.Selected = true;
+								itm.EnsureVisible();
+							}
+						}
+					}
+
+					CollapsePath();
 
 					pathListView.EndUpdate();
 				}
+
+				_isExpandingPath = false;
 			}
 		}
 
 		private void CollapsePath()
 		{
 			lock (_collapsingPath) {
+				_isCollapsingPath = true;
+
 				StringBuilder path = new StringBuilder();
 
 				if (0 < pathListView.Items.Count) {
@@ -462,10 +519,12 @@ namespace SystemPathEditor
 				}
 
 				pathTextbox.Text = path.ToString();
+
+				_isCollapsingPath = false;
 			}
 		}
 
-		private void AddPath( string path )
+		private void AddPath( string path, bool collapsePath = true )
 		{
 			ListViewItem item;
 
@@ -473,7 +532,10 @@ namespace SystemPathEditor
 			SetPath(item);
 
 			pathListView.Items.Add(item);
-			CollapsePath();
+
+			if (collapsePath) {
+				CollapsePath();
+			}
 		}
 
 		private void SetPath( ListViewItem item )
@@ -552,14 +614,17 @@ namespace SystemPathEditor
 
 		private void loadSystemPathToolStripMenuItem_Click( object sender, EventArgs e )
 		{
-			LoadPath(Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Environment\", true));
+			try {
+				LoadPath(Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Environment\", true));
+			} catch (System.Security.SecurityException) {
+				MessageBox.Show("This requires the application to be run with elevated privileges. (ie: Right click the file and select 'Run as Administrator')", "Elevated Privileges Required", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			}
 		}
 
 		private void LoadPath( RegistryKey key )
 		{
 			if (key != null) {
 				_curPathVar = key;
-				_hasChanged = false;
 
 				// Read PATH variable from specified key
 				pathTextbox.Text = (string)key.GetValue("PATH", "", RegistryValueOptions.DoNotExpandEnvironmentNames);
@@ -571,6 +636,8 @@ namespace SystemPathEditor
 				loadSystemPathToolStripMenuItem.Enabled = false;
 				clearToolStripMenuItem.Enabled = true;
 				saveToolStripMenuItem.Enabled = true;
+
+				_hasChanged = false;
 			}
 		}
 

@@ -64,6 +64,9 @@
   <PropertyGroup>
     <StartupObject>SystemPathEditor.Program</StartupObject>
   </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core">
@@ -106,6 +109,7 @@
       <DesignTime>True</DesignTime>
     </Compile>
     <None Include="app.config" />
+    <None Include="app.manifest" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -146,6 +150,6 @@
   </Target>
   -->
   <PropertyGroup>
-    <PostBuildEvent>if exist "C:\Kody\Root" copy "$(TargetPath)" C:\Kody\Root\SysPathEditor.exe</PostBuildEvent>
+    <PostBuildEvent>if exist "%bin%\editpath.exe" copy "$(TargetPath)" "%bin%\editpath.exe"</PostBuildEvent>
   </PropertyGroup>
 </Project>
